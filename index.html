@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>Schallplattensammlung</title>
+
+    <!-- Poppins Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;700&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            margin: 0;
+            font-family: 'Poppins', sans-serif;
+            background-color: #2e1b13;
+            color: white;
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 40px;
+            font-weight: 700;
+            margin-top: 30px;
+            padding: 0 10px;
+        }
+
+        .container {
+            margin-top: 20px;
+            padding: 0 10px;
+        }
+
+        input {
+            padding: 12px;
+            margin: 5px;
+            border-radius: 6px;
+            border: none;
+            width: 90%;
+            max-width: 300px;
+        }
+
+        button {
+            padding: 12px 18px;
+            margin: 10px 5px;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .delete-btn {
+            background-color: white;
+            color: black;
+        }
+
+        /* 📱 Tabelle responsive */
+        .table-wrapper {
+            overflow-x: auto;
+            margin-top: 20px;
+        }
+
+        table {
+            width: 100%;
+            min-width: 500px;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            padding: 10px;
+            border-bottom: 1px solid white;
+            text-align: left;
+        }
+
+        th {
+            cursor: pointer;
+            position: sticky;
+            top: 0;
+            background-color: #2e1b13;
+        }
+
+        tr:hover {
+            background-color: rgba(255,255,255,0.1);
+        }
+
+        /* 📱 Mobile Anpassung */
+        @media (max-width: 600px) {
+            h1 {
+                font-size: 28px;
+            }
+
+            input {
+                width: 100%;
+            }
+
+            button {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<h1>MATTHIAS'S VINYLSAMMLUNG</h1>
+
+<div class="container">
+
+    <!-- 🔍 Suche -->
+    <input id="search" placeholder="Suchen..." oninput="renderRecords()">
+
+    <br><br>
+
+    <!-- ✏️ Eingabe -->
+    <input id="title" placeholder="Titel">
+    <input id="artist" placeholder="Interpret">
+    <input id="year" placeholder="Jahr">
+    <button onclick="addRecord()">Hinzufügen</button>
+
+    <br><br>
+
+    <div class="table-wrapper">
+    <table>
+        <thead>
+        <tr>
+            <th onclick="sortBy('title')">Titel ⬍</th>
+            <th onclick="sortBy('artist')">Interpret ⬍</th>
+            <th onclick="sortBy('year')">Jahr ⬍</th>
+            <th>Aktion</th>
+        </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+    </table>
+    </div>
+</div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+
+    import {
+        getFirestore,
+        collection,
+        addDoc,
+        getDocs,
+        deleteDoc,
+        doc
+    } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyCy-MLv-lEVzjaq4BVigw4HhkUfa9XconI",
+        authDomain: "schallplattendb.firebaseapp.com",
+        projectId: "schallplattendb",
+        storageBucket: "schallplattendb.firebasestorage.app",
+        messagingSenderId: "782034360514",
+        appId: "1:782034360514:web:ab32c9b7d7462d6486435b"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    let currentSort = "title";
+    let sortDirection = 1;
+
+    window.sortBy = function(field) {
+        if (currentSort === field) {
+            sortDirection *= -1;
+        } else {
+            currentSort = field;
+            sortDirection = 1;
+        }
+        renderRecords();
+    };
+
+    // ➕ Hinzufügen
+    window.addRecord = async function() {
+        try {
+            const title = document.getElementById("title").value;
+            const artist = document.getElementById("artist").value;
+            const year = document.getElementById("year").value;
+
+            if (!title || !artist || !year) return;
+
+            await addDoc(collection(db, "records"), {
+                title,
+                artist,
+                year
+            });
+
+            document.getElementById("title").value = "";
+            document.getElementById("artist").value = "";
+            document.getElementById("year").value = "";
+
+            renderRecords();
+        } catch (error) {
+            console.error("Fehler beim Hinzufügen:", error);
+        }
+    };
+
+    // 🗑️ Löschen
+    window.deleteRecord = async function(id) {
+        await deleteDoc(doc(db, "records", id));
+        renderRecords();
+    };
+
+    // 🔄 Render + Suche + Sortierung
+    window.renderRecords = async function() {
+        const search = document.getElementById("search").value.toLowerCase();
+        const tableBody = document.getElementById("tableBody");
+
+        tableBody.innerHTML = "";
+
+        const querySnapshot = await getDocs(collection(db, "records"));
+
+        let records = [];
+
+        querySnapshot.forEach((docItem) => {
+            const data = docItem.data();
+
+            const title = data.title || "";
+            const artist = data.artist || "";
+            const year = data.year || "";
+
+            if (
+                title.toLowerCase().includes(search) ||
+                artist.toLowerCase().includes(search) ||
+                year.toLowerCase().includes(search)
+            ) {
+                records.push({
+                    id: docItem.id,
+                    title,
+                    artist,
+                    year
+                });
+            }
+        });
+
+        records.sort((a, b) => {
+            return a[currentSort].localeCompare(b[currentSort]) * sortDirection;
+        });
+
+
+        records.forEach(r => {
+            const row = document.createElement("tr");
+
+            row.innerHTML = `
+                <td>${r.title}</td>
+                <td>${r.artist}</td>
+                <td>${r.year}</td>
+                <td>
+                    <button class="delete-btn" onclick="deleteRecord('${r.id}')">Löschen</button>
+                </td>
+            `;
+
+            tableBody.appendChild(row);
+        });
+    };
+
+    renderRecords();
+</script>
+
+</body>
+</html>
